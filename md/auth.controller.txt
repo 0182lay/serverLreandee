@@ -1,0 +1,168 @@
+import type { Request, Response } from "express";
+import bcrypt from "bcrypt";
+import { prisma } from "../lib/prisma";
+
+export const register = async (req: Request, res: Response) => {
+    try {
+        const { email, password, first_name, last_name } = req.body;
+
+        // 1.validate
+        if (!email) {
+            return res.status(400).json({
+                message: "ກະລຸນາໃສ່ອີເມວ",
+            });
+        }
+        if (!password) {
+            return res.status(400).json({
+                success: false,
+                message: "ກະລຸນາໃສ່ລະຫັດ",
+            });
+        }
+
+        // 2. ເຊັກອີເມວຊຳ້
+        const checkUser = await prisma.user.findUnique({ where: { email } });
+        if (checkUser) {
+            return res.status(409).json({ message: "ອີເມວມີຢູ່ແລ້ວ" });
+        }
+
+        // 3. Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashPassword = await bcrypt.hash(password, salt);
+
+        // 4. ສ້າງ user
+        const userData = {
+            email: email,
+            password_hash: hashPassword,
+            profile: {
+                create: {
+                    first_name: first_name || "",
+                    last_name: last_name || "",
+                },
+            },
+        };
+        // console.log(userData);
+        const newUser = await prisma.user.create({
+            data: userData,
+            include: { profile: true },
+        });
+
+        // 5. ຕັດ password_hash ອອກກ່ອນ return
+        // const { password_hash: _, ...safeUser } = newUser;
+
+        return res.status(201).json({
+            message: "ຜູ້ໃຊ້ລົງທະບຽນສຳເລັດແລ້ວ",
+            // data: safeUser,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: "Internal Server Error" });
+    }
+};
+
+export const login = async (req: Request, res: Response) => {
+    try {
+        const { email, password } = req.body;
+        if (!email) {
+            return res.status(400).json({
+                message: "ກະລຸນາໃສ່ອີເມວ!!!",
+            });
+        }
+        if (!password) {
+            return res.status(400).json({
+                message: "ກະລຸນາໃສ່ລະຫັດຜ່ານ!!!",
+            });
+        }
+        // 1. check emaill in DB
+        const user = await prisma.user.findUnique({
+            where: {
+                email,
+            },
+        });
+        if (!user) {
+            return res.status(400).json({
+                message: "ບໍ່ພົບຂໍ້ມູນກະລຸນາລົງທະບຽນ!!!",
+            });
+        }
+        // 2. compare password
+        const isMatch = await bcrypt.compare(password, user.password_hash);
+        if (!isMatch) {
+            return res.status(400).json({
+                message: "ລະຫັດຜ່ານບໍ່ຕົງ!!!",
+            });
+        }
+        // 3. create payload ສ້າງມາເພື່ອເອົາໄປເົຂ້າ token
+        const payload = {
+            user: {
+                id: user.user_id,
+                email: user.email,
+                role: user.role,
+            },
+        };
+
+        // 4. create token
+        const token = jwt.sign(payload, "laysky", {
+            expiresIn: "1d",
+        });
+        res.json({
+            User: payload.user,
+            Token: token,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: "Internal Server Error" });
+    }
+};
+export const login = async (req: Request, res: Response) => {
+    try {
+        const { email, password } = req.body;
+        if (!email) {
+            return res.status(400).json({
+                message: "ກະລຸນາໃສ່ອີເມວ!!!",
+            });
+        }
+        if (!password) {
+            return res.status(400).json({
+                message: "ກະລຸນາໃສ່ລະຫັດຜ່ານ!!!",
+            });
+        }
+        // 1. check emaill in DB
+        const user = await prisma.user.findUnique({
+            where: {
+                email,
+            },
+        });
+        if (!user) {
+            return res.status(400).json({
+                message: "ບໍ່ພົບຂໍ້ມູນກະລຸນາລົງທະບຽນ!!!",
+            });
+        }
+        // 2. compare password
+        const isMatch = await bcrypt.compare(password, user.password_hash);
+        if (!isMatch) {
+            return res.status(400).json({
+                message: "ລະຫັດຜ່ານບໍ່ຕົງ!!!",
+            });
+        }
+        // 3. create payload ສ້າງມາເພື່ອເອົາໄປເົຂ້າ token
+        const payload = {
+            user: {
+                id: user.user_id,
+                email: user.email,
+                role: user.role,
+            },
+        };
+
+        // 4. create token
+        const token = jwt.sign(payload, "laysky", {
+            expiresIn: "1d",
+        });
+        res.json({
+            User: payload.user,
+            Token: token,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: "Internal Server Error" });
+    }
+};
+

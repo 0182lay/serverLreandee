@@ -1,0 +1,277 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum Role {
+  student
+  instructor
+  admin
+}
+
+enum FileType {
+  video
+  document
+  image
+}
+
+enum EnrollmentStatus {
+  active
+  completed
+  dropped
+}
+
+enum QuestionType {
+  multiple_choice
+  true_false
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refunded
+}
+
+model User {
+  user_id       String   @id @default(uuid())
+  email         String   @unique
+  password_hash String
+  role          Role     @default(student)
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  quiz_submissions QuizSubmission[]
+  reviews          CourseReview[]
+  payments         Payment[]
+  enrollments Enrollment[]
+  profile UserProfile?
+  courses Course[]
+  
+  @@index([role])
+  @@index([is_active])
+  @@map("users")
+}
+
+model UserProfile {
+  profile_id String   @id @default(uuid())
+  user_id    String   @unique
+  first_name String   @default("")
+  last_name  String   @default("")
+  avatar_url String?
+  bio        String?  @db.Text
+  phone      String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+
+model Category {
+  category_id String   @id @default(uuid())
+  name        String   @unique
+  description String?  @db.Text
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  courses Course[]
+
+  @@map("categories")
+}
+
+model Course {
+  course_id     String   @id @default(uuid())
+  category_id   String
+  instructor_id String
+  title         String
+  description   String?  @db.Text
+  price         Decimal  @default(0)
+  is_published  Boolean  @default(false)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  reviews  CourseReview[]
+  payments Payment[]
+  enrollments Enrollment[]
+  lessons    Lesson[] 
+
+  category   Category @relation(fields: [category_id], references: [category_id])
+  instructor User     @relation(fields: [instructor_id], references: [user_id])
+
+  @@map("courses")
+}
+
+model Lesson{
+  lesson_id String  @id @default(uuid())
+  course_id String 
+  title     String
+  description String?  @db.Text
+  order_index Int @default(0)
+  is_free_preview Boolean  @default(false)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  quiz Quiz?
+  progress LearningProgress[]
+  files  LessonFile[]
+
+  course Course @relation(fields: [course_id], references: [course_id], onDelete: Cascade)
+
+  @@index([course_id])
+  @@index([order_index])
+  @@map("lessons")
+}
+
+model LessonFile {
+  file_id           String @id @default(ulid())
+  lesson_id         String
+  file_type         FileType
+  file_url          String
+  original_name     String
+  duration_seconds  Int?
+  size_bytes        Int?
+  order_index       Int    @default(0)
+  created_at       DateTime @default(now())
+
+  lesson Lesson @relation(fields: [lesson_id], references: [lesson_id], onDelete: Cascade)
+
+  @@index([lesson_id])
+  @@map("lesson_files")
+
+}
+
+model Enrollment {
+  enrollment_id     String @id @default(uuid())
+  student_id     String 
+  course_id      String
+  status         EnrollmentStatus @default(active)
+  is_paid        Boolean  @default(false)
+  amount_paid    Decimal  @default(0) @db.Decimal(10,2)
+  enrolled_at    DateTime @default(now())
+  completed_at   DateTime?
+  updated_at     DateTime @updatedAt
+
+  progress LearningProgress[]
+
+  student User @relation(fields: [student_id],references: [user_id],onDelete: Cascade)
+  course  Course @relation(fields: [course_id],references: [course_id],onDelete: Cascade)
+
+  @@unique([student_id,course_id])
+  @@index([student_id])
+  @@index([course_id])
+  @@map("enrollments")
+}
+
+model LearningProgress {
+  progress_id            String    @id @default(uuid())
+  enrollment_id          String
+  lesson_id              String
+  is_completed           Boolean   @default(false)
+  watch_duration_seconds Int       @default(0)
+  last_accessed_at       DateTime  @default(now())
+  completed_at           DateTime?
+
+  enrollment Enrollment @relation(fields: [enrollment_id],references: [enrollment_id],onDelete: Cascade)
+  lesson     Lesson     @relation(fields: [lesson_id], references: [lesson_id], onDelete: Cascade)
+
+  @@unique([enrollment_id, lesson_id])
+  @@index([enrollment_id])
+  @@map("learning_progress")
+}
+
+model Quiz {
+  quiz_id     String   @id @default(uuid())
+  lesson_id   String   @unique
+  title       String
+  description String?  @db.Text
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  questions   QuizQuestion[]
+  submissions QuizSubmission[]
+
+  lesson Lesson @relation(fields: [lesson_id], references: [lesson_id], onDelete: Cascade)
+
+  @@index([lesson_id])
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  question_id    String       @id @default(uuid())
+  quiz_id        String
+  question_text  String       @db.Text
+  question_type  QuestionType
+  options        Json         // ["A", "B", "C", "D"]
+  correct_answer String
+  order_index    Int          @default(0)
+  created_at     DateTime     @default(now())
+
+  quiz Quiz @relation(fields: [quiz_id], references: [quiz_id], onDelete: Cascade)
+
+  @@index([quiz_id])
+  @@map("quiz_questions")
+}
+
+model QuizSubmission {
+  submission_id String   @id @default(uuid())
+  quiz_id       String
+  student_id    String
+  score         Int      @default(0)
+  total         Int      @default(0)
+  submitted_at  DateTime @default(now())
+
+  quiz    Quiz @relation(fields: [quiz_id], references: [quiz_id], onDelete: Cascade)
+  student User @relation(fields: [student_id], references: [user_id], onDelete: Cascade)
+
+  @@index([quiz_id])
+  @@index([student_id])
+  @@map("quiz_submissions")
+}
+
+model CourseReview {
+  review_id  String   @id @default(uuid())
+  course_id  String
+  student_id String
+  rating     Int      // 1-5
+  comment    String?  @db.Text
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  course  Course @relation(fields: [course_id], references: [course_id], onDelete: Cascade)
+  student User   @relation(fields: [student_id], references: [user_id], onDelete: Cascade)
+
+  @@unique([course_id, student_id]) // review ได้แค่ 1 ครั้งต่อ course
+  @@index([course_id])
+  @@map("course_reviews")
+}
+
+model Payment {
+  payment_id     String        @id @default(uuid())
+  student_id     String
+  course_id      String
+  amount         Decimal       @db.Decimal(10, 2)
+  status         PaymentStatus @default(pending)
+  payment_method String?
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+
+  student User   @relation(fields: [student_id], references: [user_id], onDelete: Cascade)
+  course  Course @relation(fields: [course_id], references: [course_id], onDelete: Cascade)
+
+  @@index([student_id])
+  @@index([course_id])
+  @@map("payments")
+}

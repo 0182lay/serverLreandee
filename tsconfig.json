@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "target": "ES2023",
+        "strict": true,
+        "ignoreDeprecations": "6.0",
+        "moduleDetection": "force",
+        "resolveJsonModule": true,
+        "allowJs": true,
+        "esModuleInterop": true,
+        "isolatedModules": true
+    }
+}
